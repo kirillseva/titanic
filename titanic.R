@@ -18,7 +18,7 @@ numerize <- function(vec) {
   as.numeric(gsub("[,]", "", as.character(vec)))
 }
 
-# Deduce a person's surname from the name field.
+# deduce a person's surname from the name field.
 # surname comes first, before comma
 get_surname <- function(name) {
   strsplit(name, ",")[[1]][1]
@@ -50,24 +50,23 @@ survived_word_to_num <- function(vec) {
 
 # figure out if a person was travelling with a spouse.
 # the heuristics for that are:
-# among the travellers there is a person with the same surname, different sex,
+# among the travellers there is a person with the same Surname, different Sex,
 # same Embarked and same Pclass
 find_singles <- function (df) {
-  df$Single <- apply(df[,c('Name','Surname','Embarked','Sex','Pclass')], 1, function(row) {
-    # always finds at least one value (the person themselve)
+  df$Single <- apply(df, 1, function(row) {
+    # always finds at least one value (the person him/herself)
     potential_spouses <- which(row['Surname'] == df$Surname)
     if (length(potential_spouses) == 1) {
       return('yes')
     }
-    single = 'yes'
     for (idx in potential_spouses) {
       suspect = data[idx,]
       if(suspect['Name'] == row['Name'])
         next
       if(suspect['Sex'] != row['Sex'] && suspect['Embarked'] == row['Embarked'] && suspect['Pclass'] == row['Pclass'])
-        single = 'no'
+        return('no')
     }
-    return(single)
+    return('yes')
   })
   df$Single <- as.factor(df$Single)
   df
@@ -86,32 +85,32 @@ data <- rbind(data_first, data_second)
 data$Surname <- as.factor(sapply(data$Name, get_surname, simplify = T))
 data <- find_singles(data)
 
-#Let's train the model on 80% of the data and evaluate on the other 20%
+###
+# Done with processing data, let's try applying a model
+###
+PARAMS <- c("Pclass", "Sex", "Age", "Fare", "Embarked", "Single")
+FORMULA <- Survived ~ Pclass + Sex + Age + Fare + Embarked + Single
+
+# let's train the model on 80% of the data and evaluate on the other 20%
 eighty_percent = 0.8*nrow(data)
 train <- data[1:eighty_percent,]
 test <- data[(eighty_percent+1):nrow(data),]
 
 # We will try fitting a tree and a random forest, and see which one performed better
-fit_tree <- rpart(Survived ~ Pclass + Sex + Age + Fare + Embarked + Single,
-                  data=train, method="class")
-fit_forest <- randomForest(Survived ~ Pclass + Sex + Age + Fare + Embarked + Single,
-                           data=train, na.action=na.omit,
+fit_tree <- rpart(FORMULA, data=train, method="class")
+fit_forest <- randomForest(FORMULA, data=train, na.action=na.omit,
                            importance=TRUE, keep.forest=TRUE)
 
-# check which variables are the most important according to the forest
+# check which variables are the most important
 varImpPlot(fit_forest, type=1)
-# Apparently the most important predictor is sex, followed by pclass, age, fare, single, embarked
+# apparently the most important predictor is sex, followed by pclass, age, fare, single, embarked
 
 # visualize the tree
 post(fit_tree, file = "tree.ps", 
      title = "Classification Tree for Titanic Survival")
 
-tree_model <- predict(fit_tree,
-                          newdata=subset(test,select=c("Pclass", "Sex", "Age",
-                                                       "Fare", "Embarked", "Single")))
-predicted_forest <- predict(fit_forest,
-                          newdata=subset(test,select=c("Pclass", "Sex", "Age",
-                                                       "Fare", "Embarked", "Single")))
+tree_model <- predict(fit_tree, newdata=subset(test,select=PARAMS))
+predicted_forest <- predict(fit_forest, newdata=subset(test,select=PARAMS))
 
 predicted_tree <- as.factor(apply(tree_model, 1, function(row) {
   result = 'no'
@@ -121,7 +120,7 @@ predicted_tree <- as.factor(apply(tree_model, 1, function(row) {
   result
 }))
 
-# Print error rates of the two models
+# print error rates of the two models
 error_tree <- round(length(which(predicted_tree != test$Survived))/nrow(test)*100, 2)
 error_forest <- round(length(which(predicted_forest != test$Survived))/nrow(test)*100, 2)
 
