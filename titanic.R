@@ -56,14 +56,12 @@ find_singles <- function (df) {
   df$Single <- apply(df, 1, function(row) {
     # always finds at least one value (the person him/herself)
     potential_spouses <- which(row['Surname'] == df$Surname)
-    if (length(potential_spouses) == 1) {
-      return('yes')
-    }
     for (idx in potential_spouses) {
       suspect = data[idx,]
-      if(suspect['Name'] == row['Name'])
-        next
-      if(suspect['Sex'] != row['Sex'] && suspect['Embarked'] == row['Embarked'] && suspect['Pclass'] == row['Pclass'])
+      if(suspect['Sex'] != row['Sex'] &&
+         suspect['Embarked'] == row['Embarked'] &&
+         suspect['Pclass'] == row['Pclass'] && 
+         suspect['Name'] != row['Name'])
         return('no')
     }
     return('yes')
@@ -103,7 +101,8 @@ fit_forest <- randomForest(FORMULA, data=train, na.action=na.omit,
 
 # check which variables are the most important
 varImpPlot(fit_forest, type=1)
-# apparently the most important predictor is sex, followed by pclass, age, fare, single, embarked
+# apparently the most important predictor is sex,
+# followed by pclass, age, fare, single, embarked
 
 # visualize the tree
 post(fit_tree, file = "tree.ps", 
